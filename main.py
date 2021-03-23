@@ -2,46 +2,28 @@ import requests
 from bs4 import BeautifulSoup
 import urllib.parse
 import csv
-
-data_list = [['product_page_url',
-              'universal_product_code',
-              'title', 'price_including_tax',
-              'price_excluding_tax',
-              'number_available',
-              'product_description',
-              'category',
-              'review_rating',
-              'image_url']]
-
-category_url = "http://books.toscrape.com/catalogue/category/books/fiction_10/index.html"
-
-response = requests.get(category_url)
-
-web_page_content = response.content
-
-soup = BeautifulSoup(web_page_content, 'html.parser')
+import os
 
 
-def extract():
+def extract(category_link, soup):
     li = soup.find_all("li", {'class': 'col-xs-6'})
     for elements in li:
         h3 = elements.find("h3")
         a = h3.find("a")
         href = a["href"]
-        product_page_url = urllib.parse.urljoin(category_url, href)
-        response = requests.get(product_page_url)
-        web_page_content = response.content
-        soup2 = BeautifulSoup(web_page_content, 'html.parser')
+        product_page_url = urllib.parse.urljoin(category_link, href)
+        product_page_content = requests.get(product_page_url).content
+        product_page_soup = BeautifulSoup(product_page_content, 'html.parser')
 
-        universal_product_code = soup2.find("td")
-        title = soup2.find("h1")
-        price_including_tax = soup2.find_all('td')[3]
-        price_excluding_tax = soup2.find_all('td')[2]
-        number = soup2.find_all('td')[5]
-        product_description = soup2.find('div', {"id": 'product_description'})
-        category = soup2.find_all('li')[2]
-        review_rating = soup2.find('p', {'class': 'star-rating'})['class'][1]
-        link = soup2.find('img')['src']
+        universal_product_code = product_page_soup.find("td")
+        title = product_page_soup.find("h1")
+        price_including_tax = product_page_soup.find_all('td')[3]
+        price_excluding_tax = product_page_soup.find_all('td')[2]
+        number = product_page_soup.find_all('td')[5]
+        product_description = product_page_soup.find('div', {"id": 'product_description'})
+        category = product_page_soup.find_all('li')[2]
+        review_rating = product_page_soup.find('p', {'class': 'star-rating'})['class'][1]
+        link = product_page_soup.find('img')['src']
 
         if universal_product_code is None:
             universal_product_code = "empty"
@@ -77,7 +59,6 @@ def extract():
         if link is None:
             image_url = "empty"
         else:
-            home_url = 'http://books.toscrape.com'
             image_url = urllib.parse.urljoin(home_url, link)
 
         print(product_page_url)
@@ -91,7 +72,13 @@ def extract():
         print(review_rating)
         print(image_url)
 
-        all_elements = [product_page_url,
+        file_name = image_url.split('/')[-1]
+        r = requests.get(image_url, stream=True)
+        with open("images/" + file_name, 'wb') as f:
+            for chunk in r:
+                f.write(chunk)
+
+        data_list.append([product_page_url,
                         universal_product_code,
                         title, price_including_tax,
                         price_excluding_tax,
@@ -99,27 +86,60 @@ def extract():
                         product_description,
                         category,
                         review_rating,
-                        image_url]
-
-        data_list.append(all_elements)
+                        image_url])
 
 
-while True:
-    pagination_button = soup.find('li', {"class": 'next'})
-    if pagination_button is not None:
-        extract()
-        hyperlink = pagination_button.find('a')
-        url = hyperlink['href']
-        next_page_url = urllib.parse.urljoin(category_url, url)
-        response = requests.get(next_page_url)
-        html = response.content
-        soup = BeautifulSoup(html, 'html.parser')
-        extract()
-    else:
-        extract()
-        break
+def check_for_next_page(category_link):
+
+    category_page_content = requests.get(category_link).content
+    category_soup = BeautifulSoup(category_page_content, 'html.parser')
+
+    while True:
+        pagination_button = category_soup.find('li', {"class": 'next'})
+        if pagination_button is not None:
+            extract(category_link, category_soup)
+            hyperlink = pagination_button.find('a')
+            url = hyperlink['href']
+            next_page_url = urllib.parse.urljoin(category_link, url)
+            category_page_content = requests.get(next_page_url).content
+            category_soup = BeautifulSoup(category_page_content, 'html.parser')
+        else:
+            extract(category_link, category_soup)
+            break
 
 
-with open('data.csv', 'w', newline='') as fp:
-    a = csv.writer(fp)
-    a.writerows(data_list)
+home_url = "http://books.toscrape.com"
+
+response = requests.get(home_url)
+
+web_page_content = response.content
+
+soup = BeautifulSoup(web_page_content, 'html.parser')
+
+ul = soup.find("ul", {'class': 'nav-list'}).find('ul')
+
+al_lis = ul.find_all('li')
+
+os.mkdir('images')
+os.mkdir('categories')
+
+
+for elem in al_lis:
+    data_list = [['product_page_url',
+                  'universal_product_code',
+                  'title', 'price_including_tax',
+                  'price_excluding_tax',
+                  'number_available',
+                  'product_description',
+                  'category',
+                  'review_rating',
+                  'image_url']]
+    li = elem.find('a')
+    category_name = li.text
+    href = li['href']
+    category_link = urllib.parse.urljoin(home_url, href)
+    check_for_next_page(category_link)
+    with open('categories/' + category_name.rstrip().strip() + ".csv", 'w', newline='', encoding='utf-8') as fp:
+        a = csv.writer(fp)
+        a.writerows(data_list)
+    del data_list[:]
