@@ -33,10 +33,10 @@ After downloading the project from Github, extract it to a location of your choi
 
 Then, using cmd, go to the location of the project, create a virtual environment and install packages from requirements.txt as follow :
 
-$ CD ../path/to/the/project
-$ py -m venv env
-$ execute activate.bat located in env\Scripts
-$ py -m pip install -U pip
-$ pip install -r requirements.txt
-$ then execute main.py
+ - $ CD ../path/to/the/project
+ - $ py -m venv env
+ - $ execute activate.bat located in env\Scripts
+ - $ py -m pip install -U pip
+ - $ pip install -r requirements.txt
+ - $ then execute main.py
 
